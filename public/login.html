@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PortHub Login</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="login-body">
+    <main class="login-card">
+      <h1>PortHub</h1>
+      <p class="muted">Enter the admin password to continue.</p>
+      <form id="login-form" class="stack">
+        <label class="field">
+          <span>Password</span>
+          <input type="password" name="password" required />
+        </label>
+        <button type="submit" class="primary">Unlock</button>
+        <p id="login-error" class="error"></p>
+      </form>
+    </main>
+    <script>
+      const form = document.getElementById("login-form");
+      const error = document.getElementById("login-error");
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        error.textContent = "";
+        const formData = new FormData(form);
+        const password = formData.get("password");
+        const res = await fetch("/api/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          error.textContent = data.error || "Login failed";
+          return;
+        }
+        window.location.href = "/";
+      });
+    </script>
+  </body>
+</html>
