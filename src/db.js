@@ -256,3 +256,121 @@ export function reorderConnections(folderId, orderedIds) {
 export function defaultFolderId() {
   return getDefaultFolderId();
 }
+
+export function exportData() {
+  return {
+    folders: listFolders(),
+    connections: listConnections(),
+  };
+}
+
+function normalizeImportFolder(folder, fallbackSortOrder) {
+  const name = String(folder?.name || "").trim();
+  if (!name) {
+    throw new Error("folder name is required");
+  }
+  const id = Number(folder?.id);
+  const hasId = Number.isInteger(id) && id > 0;
+  const sortOrderValue = Number(folder?.sort_order ?? folder?.sortOrder);
+  const sortOrder = Number.isInteger(sortOrderValue) && sortOrderValue > 0
+    ? sortOrderValue
+    : fallbackSortOrder;
+  return { id: hasId ? id : null, name, sortOrder };
+}
+
+function normalizeImportConnection(conn) {
+  const name = String(conn?.name || "").trim();
+  const host = String(conn?.host || "").trim();
+  const username = String(conn?.username || "").trim();
+  const password = String(conn?.password || "");
+  const portIsDynamic = Boolean(conn?.portIsDynamic);
+  const port = portIsDynamic ? null : Number(conn?.port);
+  if (!name || !host || !username) {
+    throw new Error("connection name, host, and username are required");
+  }
+  if (!portIsDynamic && (!port || Number.isNaN(port))) {
+    throw new Error("static port is required");
+  }
+  const folderId = Number(conn?.folderId);
+  const sortOrderValue = Number(conn?.sortOrder ?? conn?.sort_order);
+  const sortOrder = Number.isInteger(sortOrderValue) && sortOrderValue > 0
+    ? sortOrderValue
+    : null;
+  return { name, host, username, password, portIsDynamic, port, folderId, sortOrder };
+}
+
+export function importData(payload) {
+  if (!payload || !Array.isArray(payload.folders) || !Array.isArray(payload.connections)) {
+    throw new Error("import payload must include folders and connections arrays");
+  }
+
+  const normalizedFolders = [];
+  let nextSortOrderValue = 1;
+  payload.folders.forEach((folder, index) => {
+    const normalized = normalizeImportFolder(folder, nextSortOrderValue);
+    nextSortOrderValue = Math.max(nextSortOrderValue, normalized.sortOrder + 1);
+    normalizedFolders.push({ ...normalized, index });
+  });
+
+  if (!normalizedFolders.some((folder) => folder.name === DEFAULT_FOLDER_NAME)) {
+    normalizedFolders.push({
+      id: null,
+      name: DEFAULT_FOLDER_NAME,
+      sortOrder: nextSortOrderValue,
+      index: normalizedFolders.length,
+    });
+  }
+
+  const normalizedConnections = payload.connections.map(normalizeImportConnection);
+
+  const tx = db.transaction(() => {
+    db.exec("DELETE FROM connections");
+    db.exec("DELETE FROM folders");
+
+    const insertFolderWithId = db.prepare(
+      "INSERT INTO folders (id, name, sort_order) VALUES (?, ?, ?)"
+    );
+    const insertFolderNoId = db.prepare(
+      "INSERT INTO folders (name, sort_order) VALUES (?, ?)"
+    );
+
+    normalizedFolders.forEach((folder) => {
+      if (folder.id) {
+        insertFolderWithId.run(folder.id, folder.name, folder.sortOrder);
+      } else {
+        insertFolderNoId.run(folder.name, folder.sortOrder);
+      }
+    });
+
+    const defaultIdRow = db
+      .prepare("SELECT id FROM folders WHERE name = ?")
+      .get(DEFAULT_FOLDER_NAME);
+    const defaultId = defaultIdRow?.id || getDefaultFolderId();
+    const folderIdRows = db.prepare("SELECT id FROM folders").all();
+    const folderIdSet = new Set(folderIdRows.map((row) => row.id));
+
+    const nextSortByFolder = new Map();
+    const insertConn = db.prepare(
+      `INSERT INTO connections (name, host_enc, username_enc, password_enc, port, port_is_dynamic, folder_id, sort_order)
+       VALUES (@name, @host_enc, @username_enc, @password_enc, @port, @port_is_dynamic, @folder_id, @sort_order)`
+    );
+
+    normalizedConnections.forEach((conn) => {
+      const row = toRow(conn);
+      const requestedFolderId =
+        Number.isInteger(conn.folderId) && conn.folderId > 0 ? conn.folderId : null;
+      const normalizedFolderId = folderIdSet.has(requestedFolderId)
+        ? requestedFolderId
+        : defaultId;
+      const currentSort = nextSortByFolder.get(normalizedFolderId) || 1;
+      const sortOrder = conn.sortOrder || currentSort;
+      nextSortByFolder.set(normalizedFolderId, sortOrder + 1);
+      row.folder_id = normalizedFolderId;
+      row.sort_order = sortOrder;
+      insertConn.run(row);
+    });
+  });
+
+  tx();
+  return exportData();
+}

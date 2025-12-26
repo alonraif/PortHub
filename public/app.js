@@ -14,6 +14,9 @@ const portModal = document.getElementById("port-modal");
 const connectionModal = document.getElementById("connection-modal");
 const portForm = document.getElementById("port-form");
 const cancelPort = document.getElementById("cancel-port");
+const exportDbButton = document.getElementById("export-db");
+const importDbButton = document.getElementById("import-db");
+const importFileInput = document.getElementById("import-file");
 
 let currentConnections = [];
 let currentFolders = [];
@@ -73,6 +76,19 @@ function closePortModal() {
   portModal.classList.add("hidden");
   portForm.reset();
   pendingConnect = null;
+}
+
+function downloadJson(data, filename) {
+  const payload = JSON.stringify(data, null, 2);
+  const blob = new Blob([payload], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 async function api(path, options = {}) {
@@ -249,6 +265,56 @@ newFolderButton.addEventListener("click", async () => {
 logoutButton.addEventListener("click", async () => {
   await api("/api/logout", { method: "POST" });
   window.location.href = "/login";
+});
+
+exportDbButton.addEventListener("click", async () => {
+  try {
+    const password = prompt("Set an export password (required):");
+    if (!password) return;
+    const data = await api("/api/export", {
+      method: "POST",
+      body: JSON.stringify({ password }),
+    });
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    downloadJson(data, `porthub-export-${timestamp}.porthub`);
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+importDbButton.addEventListener("click", () => {
+  importFileInput.click();
+});
+
+importFileInput.addEventListener("change", async (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const blob = JSON.parse(text);
+    const password = prompt("Enter the export password:");
+    if (!password) {
+      importFileInput.value = "";
+      return;
+    }
+    const ok = confirm(
+      "Importing will replace all existing folders and connections. Continue?"
+    );
+    if (!ok) {
+      importFileInput.value = "";
+      return;
+    }
+    await api("/api/import", {
+      method: "POST",
+      body: JSON.stringify({ password, blob }),
+    });
+    importFileInput.value = "";
+    await loadData();
+    alert("Import complete.");
+  } catch (err) {
+    importFileInput.value = "";
+    alert(err.message);
+  }
 });
 
 foldersEl.addEventListener("click", async (event) => {

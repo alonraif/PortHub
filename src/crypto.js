@@ -12,24 +12,15 @@ function loadKeyFromFile() {
   }
 }
 
-function ensureKeyDir() {
-  const dir = path.dirname(keyPath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-}
-
 export function getKey() {
   let key = process.env.ENCRYPTION_KEY || "";
   if (!key) {
     key = loadKeyFromFile();
   }
   if (!key) {
-    const generated = crypto.randomBytes(32);
-    key = generated.toString("base64");
-    ensureKeyDir();
-    fs.writeFileSync(keyPath, key, "utf8");
-    console.warn("ENCRYPTION_KEY not set. Generated a local key in ./data/key");
+    throw new Error(
+      "ENCRYPTION_KEY is required. Set it in the environment or write it to ./data/key"
+    );
   }
   const buf = Buffer.from(key, "base64");
   if (buf.length !== 32) {

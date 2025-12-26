@@ -315,6 +315,15 @@ button.ghost {
   margin: 0 6vw 20px;
 }
 
+.db-panel {
+  margin: 0 6vw 30px;
+}
+
+.db-actions {
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
 .helper-panel {
   margin: 0 6vw 20px;
 }

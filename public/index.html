@@ -37,6 +37,18 @@
       <p id="command-hint" class="muted"></p>
     </section>
 
+    <section class="panel db-panel" id="db-panel">
+      <div class="panel-header">
+        <h2>Database Tools</h2>
+      </div>
+      <div class="panel-actions db-actions">
+        <button id="export-db" class="ghost">Export DB</button>
+        <button id="import-db" class="ghost">Import DB</button>
+        <input id="import-file" type="file" accept=".porthub,application/json" class="hidden" />
+      </div>
+      <p class="muted">Exports are encrypted and require a password to import.</p>
+    </section>
+
     <div id="port-modal" class="modal hidden">
       <div class="modal-card">
         <h3 id="port-modal-title">Enter dynamic port</h3>

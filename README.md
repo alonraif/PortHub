@@ -46,9 +46,11 @@ PortHub uses environment variables:
 
 - `APP_PASSWORD`: required for login
 - `SESSION_SECRET`: required for sessions
-- `ENCRYPTION_KEY`: required to decrypt stored fields
+- `ENCRYPTION_KEY`: required to encrypt/decrypt stored fields (32-byte base64)
 - `PORT`: optional, defaults to `3000`
 - `HOST`: optional, defaults to `0.0.0.0`
+- `LOGIN_WINDOW_MS`: optional, defaults to `600000` (10 minutes)
+- `LOGIN_MAX_ATTEMPTS`: optional, defaults to `5`
 
 If you change `ENCRYPTION_KEY`, existing records cannot be decrypted.
 
@@ -57,6 +59,7 @@ If you change `ENCRYPTION_KEY`, existing records cannot be decrypted.
 - Database file: `data/ssh_library.sqlite`
 - The `data/` directory is mounted into the container by `docker-compose.yml`
 - `.env` and `data/` are ignored by git for safety
+  - Optional key file location: `data/key`
 
 For backups, copy the `data/` directory while the container is stopped.
 
@@ -79,6 +82,10 @@ If a connection is set to "port is dynamic":
 - Only one folder can be expanded at a time.
 - Use "Move Folder" on a connection to move it between folders.
 
+### Database tools
+- Use "Export DB" to download an encrypted backup (requires a password).
+- Use "Import DB" to replace all existing data from an encrypted export (password required).
+
 ## Local development (without Docker)
 
 1. Install dependencies:
@@ -100,6 +107,9 @@ The server runs on http://localhost:3000
 - Stored passwords are not injected into the SSH command.
 - Session cookies are handled by `express-session`.
 - Do not commit `.env` or `data/` to version control.
+- Bind to localhost to keep the UI local-only (`HOST=127.0.0.1`).
+- Set strong `APP_PASSWORD` and `SESSION_SECRET` values.
+- Keep `data/` owner-only (chmod 700) to protect the encrypted database and key file.
 
 ## Troubleshooting
 
